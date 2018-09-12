@@ -17,7 +17,7 @@ def killed_pixels(shape, frac_kill):
 
 def load_text():
     fname = '../images/text.png'
-    text = np.mean(imread(fname_2), axis=-1)
+    text = np.mean(imread(fname), axis=-1)
     return text
 
 
@@ -32,7 +32,7 @@ def get_noisy_data():
     shape = original.shape
 
     total = range(np.prod(shape))
-    unknown = killed_pixels(shape, frac_kill=0.8)
+    unknown = killed_pixels(shape, frac_kill=0.90)
     known = list(set(total) - set(unknown))
 
     corrupted = np.zeros(shape)
@@ -78,7 +78,8 @@ def inpaint(corrupted, rows, cols):
 
 def compare(corrupted, recovered, original, fname):
     fig, ax = plt.subplots(nrows=1, ncols=4, figsize=(15, 15))
-    images = [corrupted, recovered, original, recovered - original]
+    diff = np.abs(recovered - original)
+    images = [corrupted, recovered, original, diff]
     titles = ['Corrupted', 'Recovered', 'Original', 'Difference']
     
     for i, (image, title) in enumerate(zip(images, titles)):
@@ -90,21 +91,24 @@ def compare(corrupted, recovered, original, fname):
     plt.savefig(fname)
 
 
-def task(data_fun, mode):
+def task(data_fun):
     original, corrupted = data_fun()
     rows, cols = np.where(original == corrupted)
     recovered = inpaint(corrupted, rows, cols)
-    fname = f'../images/mona_lisa_{mode}_results.png'
-    compare(corrupted, recovered, original, fname)
+    return corrupted, recovered, original
 
 
 def main():
     modes = ['text', 'noisy', 'regular']
     data_funs = [get_text_data, get_noisy_data, get_regular_noisy_data]
-    args = zip(data_funs, modes)
 
-    with Pool(len(modes)) as pool:
-        pool.starmap(task, args)
+    with Pool(len(data_funs)) as pool:
+        results = pool.map(task, data_funs)
+
+    for arrays, mode in zip(results, modes): 
+        print(f'Saving {mode} image...')
+        fname = f'../images/mona_lisa_{mode}_results.png'
+        compare(*arrays, fname)
 
 
 if __name__ == '__main__':
