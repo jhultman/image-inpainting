@@ -1,8 +1,8 @@
-from cvxpy import *
-from cvxpy.atoms.affine.vstack import vstack
-from cvxpy.atoms.affine.reshape import reshape
-from imageio import imread
 import numpy as np
+import cvxpy as cp
+
+from multiprocessing import Pool
+from imageio import imread
 import matplotlib.pyplot as plt
 
 np.random.seed(21)
@@ -15,9 +15,20 @@ def killed_pixels(shape, frac_kill):
     return inds
 
 
-def get_noisy_data():
+def load_text():
+    fname = '../images/text.png'
+    text = np.mean(imread(fname_2), axis=-1)
+    return text
+
+
+def load_mona_lisa():
     fname = '../images/monalisa.png'
-    original = np.mean(imread(fname), axis=-1)
+    mona = np.mean(imread(fname), axis=-1)
+    return mona
+
+
+def get_noisy_data():
+    original = load_mona_lisa()
     shape = original.shape
 
     total = range(np.prod(shape))
@@ -31,41 +42,37 @@ def get_noisy_data():
 
 
 def get_text_data():
-    fname_1 = '../images/monalisa.png'
-    fname_2 = '../images/text.png'
-
-    original = np.mean(imread(fname_1), axis=-1)
-    text = np.mean(imread(fname_2), axis=-1)
+    original = load_mona_lisa()
+    text = load_text()
     corrupted = np.minimum(original + text, 255)
     return original, corrupted
 
 
 def get_regular_noisy_data():
-    fname = '../images/monalisa.png'
-    original = np.mean(imread(fname), axis=-1)
+    original = load_mona_lisa()
     corrupted = original.copy()
     for i in [3, 4, 5, 7, 11]:
         corrupted[0::i, 0::i] = 0
     return original, corrupted
 
 
-def total_variation(x):
-    dx = x[1:, :-1] - x[:-1, :-1]
-    dy = x[:-1, 1:] - x[:-1, :-1]
-    D = vstack((vec(dx), vec(dy)))
-    cost = sum(norm(D, p=1, axis=0))
-    return cost
+def total_variation(arr):
+    dx = cp.vec(arr[1:, :-1] - arr[:-1, :-1])
+    dy = cp.vec(arr[:-1, 1:] - arr[:-1, :-1])
+    D = cp.vstack((dx, dy))
+    norm = cp.norm(D, p=1, axis=0)
+    return cp.sum(norm)
 
 
 def inpaint(corrupted, rows, cols):
-    x = Variable(corrupted.shape)
-    objective = Minimize(total_variation(x))
+    x = cp.Variable(corrupted.shape)
+    objective = cp.Minimize(total_variation(x))
 
     knowledge = x[rows, cols] == corrupted[rows, cols]
     constraints = [0 <= x, x <= 255, knowledge]
 
-    prob = Problem(objective, constraints)
-    prob.solve(verbose=True, solver=SCS)
+    prob = cp.Problem(objective, constraints)
+    prob.solve(verbose=True, solver=cp.SCS)
     return x.value
 
 
@@ -83,16 +90,21 @@ def compare(corrupted, recovered, original, fname):
     plt.savefig(fname)
 
 
+def task(data_fun, mode):
+    original, corrupted = data_fun()
+    rows, cols = np.where(original == corrupted)
+    recovered = inpaint(corrupted, rows, cols)
+    fname = f'../images/mona_lisa_{mode}_results.png'
+    compare(corrupted, recovered, original, fname)
+
+
 def main():
     modes = ['text', 'noisy', 'regular']
     data_funs = [get_text_data, get_noisy_data, get_regular_noisy_data]
+    args = zip(data_funs, modes)
 
-    for data_fun, mode in zip(data_funs, modes):
-        original, corrupted = data_fun()
-        rows, cols = np.where(original == corrupted)
-        recovered = inpaint(corrupted, rows, cols)
-        fname = f'../images/mona_lisa_{mode}_results.png'
-        compare(corrupted, recovered, original, fname)
+    with Pool(len(modes)) as pool:
+        pool.starmap(task, args)
 
 
 if __name__ == '__main__':
