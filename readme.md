@@ -14,14 +14,14 @@ original image, for instance by annotation, using heuristics,
 or by exploiting priors. 
 
 Here we use inpainting for text removal.
-![Text](./images/mona_lisa_text_results.png)
+![Text](./images/readme/mona_lisa_text_results.png)
 
 In this example only 10% of the pixels are visible.
-![Noise](./images/mona_lisa_noisy_results.png)
+![Noise](./images/readme/mona_lisa_noisy_results.png)
 
 Here is an example where we use a crude heuristic to 
 localize a watermark, and then use inpainting to remove it.
-![Watermark](./images/watermark_results.png)
+![Watermark](./images/readme/watermark_results.png)
 
 Problem size: 
 - 784,386 variables (512 x 512)
